@@ -1,6 +1,6 @@
 # SCP Workaround in AWS China Regions
 
-中文 ｜ [English](AdminAccount-ENG.md)
+中文 ｜ [English](README-ENG.md)
 
 [toc]
 
