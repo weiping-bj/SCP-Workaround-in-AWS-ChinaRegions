@@ -1,0 +1,104 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Deny",
+            "Action": [
+                "sns:AddPermission",
+                "sns:CreateTopic",
+                "sns:SetTopicAttributes",
+                "sns:GetTopicAttributes"
+            ],
+            "Resource": [
+                "arn:aws-cn:sns:*:*:aws-cloudtrail-logs*"
+            ]
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "sns:ListTopics"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "s3:CreateBucket",
+                "s3:PutBucketPolicy",
+                "s3:PutBucketPublicAccessBlock"
+            ],
+            "Resource": [
+                "arn:aws-cn:s3:::aws-cloudtrail-logs*"
+            ]
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "s3:ListAllMyBuckets",
+                "s3:GetBucketLocation",
+                "s3:GetBucketPolicy"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": "cloudtrail:*",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "logs:CreateLogGroup"
+            ],
+            "Resource": [
+                "arn:aws-cn:logs:*:*:log-group:aws-cloudtrail-logs*"
+            ]
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "iam:ListRoles",
+                "iam:GetRolePolicy",
+                "iam:GetUser"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": "cloudtrail.amazonaws.com"
+                }
+            }
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "kms:CreateKey",
+                "kms:CreateAlias",
+                "kms:ListKeys",
+                "kms:ListAliases"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "lambda:ListFunctions"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Deny",
+            "Action": [
+                "dynamodb:ListGlobalTables",
+                "dynamodb:ListTables"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

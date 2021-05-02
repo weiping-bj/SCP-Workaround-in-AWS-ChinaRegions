@@ -1,0 +1,14 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "events:PutEvents"
+            ],
+            "Resource": [
+                "arn:aws-cn:events:cn-north-1:<SCP_ACCOUNT_ID>:event-bus/scp-bus"
+            ]
+        }
+    ]
+}

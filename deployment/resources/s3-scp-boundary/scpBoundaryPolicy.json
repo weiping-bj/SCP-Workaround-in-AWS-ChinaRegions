@@ -1,0 +1,52 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowAllOtherAccess",
+            "Effect": "Allow",
+            "Action": "*",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ResourceProtect",
+            "Effect": "Deny",
+            "Action": "*",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/Owner": "SCP-Supervisor"
+                }
+            }
+        },
+        {
+            "Sid": "PolicyProtect",
+            "Effect": "Deny",
+            "Action": [
+                "iam:CreatePolicyVersion",
+                "iam:DeletePolicy",
+                "iam:DeletePolicyVersion",
+                "iam:GetPolicy",
+                "iam:GetPolicyVersion",
+                "iam:SetDefaultPolicyVersion"
+            ],
+            "Resource": "arn:aws-cn:iam::<ACCOUNT_ID>:policy/scpPolicy"
+        },
+        {
+            "Sid": "DenyBoundaryRemove",
+            "Effect": "Deny",
+            "Action": [
+                "iam:DeleteUserPermissionsBoundary",
+                "iam:DeleteRolePermissionsBoundary"
+            ],
+            "Resource": [
+                "arn:aws-cn:iam::<ACCOUNT_ID>:role/*",
+                "arn:aws-cn:iam::<ACCOUNT_ID>:user/*"
+            ],
+            "Condition": {
+                "ArnEquals": {
+                    "iam:PermissionsBoundary": "arn:aws-cn:iam::<ACCOUNT_ID>:policy/scpPolicy"
+                }
+            }
+        }
+    ]
+}
