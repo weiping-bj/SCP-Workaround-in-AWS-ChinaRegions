@@ -71,7 +71,7 @@ aws sns create-topic --name CN-NotifyMe --region cn-north-1
 
 After successful creation, the ARN of SNS Topic is displayed as a response.
 
-Through the AWS console, select ```Amazon SNS > Subscriptions > Create Subscription``` and enter the network administrator email address, as follows:  
+Through the AWS console, select ```Amazon SNS > Subscriptions > Create Subscription``` and enter the network administrator email address, as follows:   
 ![TopicSubscription](png/Admin-01-Subscription.png "TopicSubscription")
 
 You need to confirm this subscription via admin email.
@@ -151,21 +151,21 @@ Login AWS console，```IAM > Policies > Create Policy```：
 
 The purpose of this policy is to grant full access to AWS STS, which is named ```STSFullAccess```.
 
-Login AWS console, ```IAM > Roles > Create Role```, create a role for AWS Lambda:  
+Login AWS console, ```IAM > Roles > Create Role```, create a role for AWS Lambda:   
 ![CreateRole-Trust](png/Admin-03-createRole-trust.png "CreateRole-Trust")
 
-In the step of ```Attach permissions policies```, choose the following six managed policies: 
+In the step of ```Attach permissions policies```, choose the following six managed policies:   
 ![CreateRole-policies](png/Admin-04-createRole-policies.png "CreateRole-policies")
 
 The first five policies are AWS managed policies, and the last one is a customer managed policy that was just created.
 
 ## DynamoDB Table
-The DynamoDB Table will record which permission boundary policy file is used by different Pro Accounts and the S3 path of the policy file. An example is shown below:
+The DynamoDB Table will record which permission boundary policy file is used by different Pro Accounts and the S3 path of the policy file. An example is shown below:  
 ![DDB-sample](png/Admin-05-ddb-sample.png "DDB-sample")
 
 The scpBoundaryPolicy is used to protect the administrative resources created in the Pro Account, and the scpPermissionsPolicy is used to limit the maximum permissions of the IAM entities in the Pro Account.
 
-Login AWS console, ```DynamoDB > Tables > Create Table```, the table name is ```scp-control-record```:  
+Login AWS console, ```DynamoDB > Tables > Create Table```, the table name is ```scp-control-record```:    
 ![DDB-createTable](png/Admin-06-ddb-createTable.png "DDB-createTable")
 
 ## Lambda Function
@@ -413,7 +413,7 @@ aws apigateway create-deployment --rest-api-id xxxxxxx \
 --region cn-north-1
 ```
 
-Login AWS console of API Gateway, ```API > scp > Stages > poc > /ini > POST``` and ```API > scp > Stages > poc > /update > POST``` check the invoke URLs of ```ini``` and ```update``` separately, as follows:  
+Login AWS console of API Gateway, ```API > scp > Stages > poc > /ini > POST``` and ```API > scp > Stages > poc > /update > POST``` check the invoke URLs of ```ini``` and ```update``` separately, as follows:    
 ![InvokeURL](png/Admin-07-InvokeURL.png "InvokeURL")
 
 For the use of the API, refer to the usage notes section in the README-ENG documentation.

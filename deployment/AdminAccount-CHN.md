@@ -158,12 +158,12 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 其中前 5 个策略为 AWS 托管策略，最后一个是刚刚创建的客户托管策略。
 
 ## DynamoDB Table
-DynamoDB Table 将记录不同 Pro Account 使用了哪个权限边界策略文件，以及存放在 S3 的路径。示例如下图：
+DynamoDB Table 将记录不同 Pro Account 使用了哪个权限边界策略文件，以及存放在 S3 的路径。示例如下图：  
 ![DDB-sample](png/Admin-05-ddb-sample.png "DDB-sample")
 
 其中 scpBoundaryPolicy 用于保护 Pro Account 中创建出来的管理资源，scpPermissionsPolicy 用于限制 Pro Account 中 IAM 实体的最大权限。
 
-通过控制台，```DynamoDB > 表 > 创建表```，表的名称为 ```scp-control-record```：
+通过控制台，```DynamoDB > 表 > 创建表```，表的名称为 ```scp-control-record```：  
 ![DDB-createTable](png/Admin-06-ddb-createTable.png "DDB-createTable")
 
 ## Lambda Function
@@ -413,7 +413,7 @@ aws apigateway create-deployment --rest-api-id xxxxxxx \
 --region cn-north-1
 ```
 
-通过 API Gateway 控制台，```API > scp > 阶段 > poc > /ini > POST``` 和 ```API > scp > 阶段 > poc > /update > POST``` 可以查看到两个 API 的调用 URL，如下图：
+通过 API Gateway 控制台，```API > scp > 阶段 > poc > /ini > POST``` 和 ```API > scp > 阶段 > poc > /update > POST``` 可以查看到两个 API 的调用 URL，如下图：  
 ![InvokeURL](png/Admin-07-InvokeURL.png "InvokeURL")
 
 API 的使用参考 README 文档中的使用说明部分。

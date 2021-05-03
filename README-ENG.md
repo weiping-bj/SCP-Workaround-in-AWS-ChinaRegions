@@ -10,7 +10,9 @@ Till April 2021, the two AWS regions in mainland China (BJS, ZHY) do not support
 
 1. Automation. Automatically attaching permission boundary to IAM entities created in the managed account. 
 2. Serverless. This solution eliminates the need of EC2, and consequentlly eliminates the maintenance work from OS level.  
-3. Low Cost. This solution only generates calls/costs when the user creates an IAM entity, the total cost is close to 0
+3. Low Cost. This solution only generates calls/costs when the user creates an IAM entity, the total cost is close to 0.
+
+**NOTE**: This solution is not retroactive, that is, the permission boundaries of all IAM entities created prior to the deployment of this solution are not controlled by this solution.
 
 # Architecture Design
 ## Architecture Briefing
@@ -82,7 +84,6 @@ Pro Account is used to host the production system where the maximum privileges o
 In order to control the permissions of IAM entities in Pro Account, you need to set the Permissions Boundary for IAM entities through the Lambda function in Admin Account.
 
 The intersection of the permission boundary policy and IAM policy determines the actual permissions held by the IAM entity, as described in detail in [official docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)：  
-
 ![EffectPermissions](png/03-EffectPermissions.png "EffectPermissions")
 
 In this solution, the permission boundary policy has two functions:
@@ -102,11 +103,11 @@ The content of the above two json documents will be illustrated in the deploymen
 ## Deployment Guide
 
 
-1. [Resources deployment in Admin Account](deployment/AdminAccount-ENG.md)
+1. [Resources deployment in Admin Account](deployment/AdminAccount-ENG.md), fullfil the deployment only one time. 
 
-2. [Resources deployment in Pro Account](deployment/ProAccount-ENG.md)
+2. [Resources deployment in Pro Account](deployment/ProAccount-ENG.md), fullfil the deployment in each Pro Account once before it is put into use.
 
-## Operation Guide
+##Operation-Guide
 
 3. 通过 API Gateway 调用 API，实现：
 	- 对 Pro Account 的初始化

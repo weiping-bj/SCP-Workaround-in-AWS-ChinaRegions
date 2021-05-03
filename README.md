@@ -12,6 +12,8 @@
 2. 无服务器化。本方案无需部署 EC2，无需考虑操作系统层的运维工作。  
 3. 低成本。无服务器化方案通常机遇调用次数进行计费，本方案仅在用户创建 IAM 实体时产生调用，使用成本接近于 0。
 
+**注意**：本方案不具备追溯功能，即：在部署本方案之前创建的所有 IAM 实体的权限边界不受本方案控制。
+
 # 架构设计
 ## 总体架构介绍
 当用户在 AWS 内创建 IAM 实体（IAM User 或 IAM Role）时，会产生一个事件。本方案就是利用这个事件来触发一个 Lambda 函数，利用这个 Lambda 函数为创建出来的 IAM 实体关联一个权限边界，以此对新创建的 IAM 实体进行权限控制。整个过程如下图所示：  
@@ -81,7 +83,7 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 ## 权限边界策略说明
 为实现对 Pro Account 中的 IAM 实体进行权限控制，需要通过 Admin Account 中的 Lambda 函数对 IAM 实体设置权限边界（Permissions Boundary）。
 
-权限边界策略与 IAM 策略的交集决定了 IAM 实体所拥有的实际权限，详细说明可参考 [官方文档](https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/access_policies_boundaries.html)，其关系说明如下图：
+权限边界策略与 IAM 策略的交集决定了 IAM 实体所拥有的实际权限，详细说明可参考 [官方文档](https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/access_policies_boundaries.html)，其关系说明如下图：  
 ![EffectPermissions](png/03-EffectPermissions.png "EffectPermissions")
 
 本方案中，权限边界策略需要承担两方面的功能：
@@ -98,11 +100,60 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 
 # 部署及使用说明
 ## 部署说明
-1. [在 Admin Account 中部署所需资源](deployment/AdminAccount-CHN.md)
+1. [在 Admin Account 中部署所需资源](deployment/AdminAccount-CHN.md)，仅需部署一次。
 
-2. [在 Pro Account 中部署所需资源](deployment/ProAccount-CHN.md)
+2. [在 Pro Account 中部署所需资源](deployment/ProAccount-CHN.md)，每个 Pro Account 投入使用前部署一次。
 
 ##使用说明
-3. 通过 API Gateway 调用 API，实现：
-	- 对 Pro Account 的初始化
-	- 调整用于 Pro Account 的权限边界策略
+以下操作以 postman 为例进行演示。
+
+###初始化 Pro Account
+
+对象：Pro Account。  
+方式：调用 scp/ini API。
+
+登录 **Admin Account** 的 API Gateway 控制台，通过 ```APIs > scp > 阶段 > poc > /ini > POST```，查看调用 URL：
+![InvokeURL](deployment/png/Admin-07-InvokeURL.png "InvokeURL")
+
+向 [在 Admin Account 中部署所需资源](deployment/AdminAccount-CHN.md) 时创建的 S3 Bucket 中上传示例策略（禁止使用 CloudTrail 服务）：
+
+```
+aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://<YOUR_BUCKET_NAME>/scp-permission/
+```
+
+利用 postman 调用 API：  
+![Call-scp/ini](png/04-CallScpIni.png "Call-scp/ini")
+
+如果不输入 ```scpPermission_PATH``` 参数，[scpBoundaryPolicy.json](deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json) 将会作为权限边界策略关联给 Pro Account 中每一个创建出来的 IAM 实体。
+
+调用 scp/ini 后，Lambda 函数 [scp-01-Initial](deployment/code/scp-01-Initial.py) 将被触发，在 Pro Account 中创建所需的管理资源。该函数的处理逻辑如下：  
+![CodeDesign-ini](png/05-CodeDesign-ini.png "CodeDesign-ini")
+
+###关联权限边界
+
+对象：Pro Account 被创建的 IAM 实体。  
+方式：自动。
+
+完成对 Pro Account 的初始化工作后，CreateUser 和 CreateRole 的事件均会触发  [scp-03-Permission](deployment/code/scp-03-Permission.py) 函数，自动关联权限简介策略。该函数的处理逻辑如下：  
+![CodeDesign-permission](png/06-CodeDesign-permission.png "CodeDesign-permission")
+
+###更新权限边界策略
+
+对象：Pro Account 中的权限边界策略。  
+方式：调用 scp/update API。
+
+登录 **Admin Account** 的 API Gateway 控制台，通过 ```APIs > scp > 阶段 > poc > /update > POST```，查看调用 URL。
+
+利用 postman 或其它方式调用 API，保持以下格式：
+
+```
+{
+        "ACCOUNT_ID": "xxxxxxxxxxxx",
+        "scpPermission_Path": "s3://xxxxx.json"
+}
+```
+
+其中 scpPermission_Path 是更新的权限策略文件所在的 S3 存储路径。 
+
+调用 scp/update 后，Lambda 函数 [scp-02-Update](deployment/code/scp-02-Update.py) 将被触发，在 Pro Account 中创建所需的管理资源。该函数的处理逻辑如下：  
+![CodeDesign-update](png/07-CodeDesign-update.png "CodeDesign-update")
