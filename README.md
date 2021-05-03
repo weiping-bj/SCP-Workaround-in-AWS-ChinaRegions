@@ -94,7 +94,7 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 1. scp-boundary：声明哪些资源受到保护，通常情况下不会改变该文件
 2. scp-permission：声明 Pro Account 中 IAM 实体的权限边界，管理员根据实际需要按照标准的 IAM 策略规范编写该文件
 
-上述两个文件的内容将在部署章节中加以说明。
+上述两个文件的内容将在部署章节中加以说明，<mark>最终关联给 IAM 实体的权限边界策略：**scpPolicy = scpBoundary + scpPermission**</mark>
 
 # 部署及使用说明
 ## 部署说明
@@ -102,7 +102,7 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 
 2. [在 Pro Account 中部署所需资源](deployment/ProAccount-CHN.md)
 
-## 使用说明
+##使用说明
 3. 通过 API Gateway 调用 API，实现：
 	- 对 Pro Account 的初始化
 	- 调整用于 Pro Account 的权限边界策略

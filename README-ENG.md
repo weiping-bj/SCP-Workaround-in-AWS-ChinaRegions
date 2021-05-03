@@ -95,7 +95,7 @@ The first part varies according to different Pro Accounts, and the second part i
 1. scp-boundary: Statements of which resources are protected, which is normally not changed
 2. scp-permission：Statements of permission boundaries for IAM entities in Pro Account, administrator writes this json file according to the standard IAM policy specification based on the actual requirements
 
-The content of the above two json documents will be illustrated in the deployment section.
+The content of the above two json documents will be illustrated in the deployment section. <mark>The permissions boundary policy that is finally attached to the IAM entity: **scpPolicy = scpBoundary + scpPermission**</mark>
 
 
 # Deployment and Operation Guide

@@ -1,6 +1,6 @@
 # Deployment in Admin Acount
 
-中文 ｜ [English](README-ENG.md)
+中文 ｜ [English](AdminAccount-ENG.md)
 
 在 Admin Account 的北京区域（BJS）中依次部署以下资源：
 >可以根据自己的管理需要更改资源的名称，但需要注意修改后续操作对应的参数。
@@ -20,13 +20,10 @@
 
 **由于需要捕获 IAM 的事件，上述资源 <mark>必须</mark> 部署在北京区域（BJS）**
 
-资源部署完成后，将初始化 Pro Admin 所需要的配置文件上传至创建好的 S3 Bucket 内。
+在 S3 Bucket 创建完成后，还需要将初始化 Pro Admin 所需要的配置文件上传至创建好的 S3 Bucket 内。
 
 # 部署说明
-部署说明中的命令参考 [AWS CLI Version 2 命令规范](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/index.html#cli-aws)，需要根据 [官方文档](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) 提前安装好 AWS CLI version 2 工具，并配置好拥有 Admin Account 中 **管理员权限** 的 AKSK。如您已经安装 AWS CLI Version 1，可对应本方案参考 [AWS CLI Version 1 命令规范](https://docs.aws.amazon.com/cli/latest/reference/)，本方案对可能存在的命令差异不再做进一步说明。
-
-所创建的所有资源，对应的名称如下表：
-
+部署说明中的命令参考 [AWS CLI Version 2 命令规范](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/index.html#cli-aws)，需要根据 [官方文档](https://docs.aws.amazon.com/zh_cn/cli/latest/userguide/install-cliv2.html) 提前安装好 AWS CLI version 2 工具，并配置好拥有 Admin Account 中 **管理员权限** 的 AKSK。如您已经安装 AWS CLI Version 1，可对应本方案参考 [AWS CLI Version 1 命令规范](https://docs.aws.amazon.com/cli/latest/reference/)，本方案对可能存在的命令差异不再做进一步说明。
 
 ## EventBridge Bus
 每个 AWS 账号中都包含一个默认的事件总线：default bus，可以使用这个事件总线接受来自其它账号的事件。但建议为本方案创建专门的事件总线：
@@ -48,7 +45,7 @@ aws events put-permission \
 --region cn-north-1
 ```
 
-命令正常执行后，无返回结果。登陆 AWS 控制台，在 Amazon EventBridge > 事件 > 事件总线 > scp-bus-test 下查看 **权限** 选项，可以看到如下内容：
+命令正常执行后，无返回结果。登陆 AWS 控制台，在 ```Amazon EventBridge > 事件 > 事件总线 > scp-bus``` 下查看 **权限** 选项，可以看到如下内容：
 
 ```
 {
@@ -73,10 +70,12 @@ aws sns create-topic --name CN-NotifyMe --region cn-north-1
 ```
 创建成功后，返回 SNS Topic 的 ARN。
 
-通过 AWS 控制台选择 Amazon SNS > 订阅 > 创建订阅，输入网络管理员邮件地址，如下图：  
+通过 AWS 控制台选择 ```Amazon SNS > 订阅 > 创建订阅```，输入网络管理员邮件地址，如下图：  
 ![TopicSubscription](png/Admin-01-Subscription.png "TopicSubscription")
 
-## S3 Bucket
+需要通过管理员的邮箱确认上述订阅。
+
+##S3Bucket
 创建 S3 Bucket：
 
 ```
@@ -99,9 +98,9 @@ aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
 aws s3 sync deployment/resources/s3-account-setting/ s3://<YOUR_BUCKET_NAME>/account-setting/
 ```
 
-- [eventRuleEventPattern.json](resources/s3-account-setting/eventRuleEventPattern.json)：在 Pro Account 中创建 Event Rule 时，设定 Event Pattern 需要用到的文件。表示接收调用成功的 CreateUser 和 CreateRole 事件。
-- [eventRuleRolePolicy.json](resources/s3-account-setting/eventRuleRolePolicy.json)：在 Pro 	Account  中创建 Event Rule 时需要继承一个 Role，这个 Role  的权限是允许 Event Rule 向 Admin Account 中的 ```scp-bus``` 事件总线发送事件。
-- [eventRuleRoleTrustRelation.json](resources/s3-account-setting/eventRuleRoleTrustRelation.json)：在 Pro Account  中创建 Event Rule 时需要继承一个 Role，这个 Role 信任的实体是 events.amazonaws.com。
+- [eventRuleEventPattern.json](resources/s3-account-setting/eventRuleEventPattern.json)：在 Pro Account 中创建 Event Rule 时，设定 Event Pattern 需要用到的文件。表示接收调用成功的 CreateUser 或 CreateRole 事件。
+- [eventRuleRolePolicy.json](resources/s3-account-setting/eventRuleRolePolicy.json)：在 Pro 	Account  中创建 Event Rule 时需要指定一个 Role，这个 Role  的权限是允许 Event Rule 向 Admin Account 中的 ```scp-bus``` 事件总线发送事件。
+- [eventRuleRoleTrustRelation.json](resources/s3-account-setting/eventRuleRoleTrustRelation.json)：在 Pro Account  中创建 Event Rule 时需要指定一个 Role，这个 Role 信任的实体是 events.amazonaws.com。
 -  [trailS3BucketPolicy.json](resources/s3-account-setting/trailS3BucketPolicy.json)：为了使 EventBridge 可以捕获 CloudTrail API Call 事件，需要创建 CloudTrail trail。在创建 CloudTrail trail 时，需要制定 S3 Bucket。这个 S3 Bucket 需要设定特殊的访问策略。
 
 2. **scp-boundary/**：保护 Pro Account 中控制资源所需要用到的策略文件。
@@ -117,11 +116,11 @@ aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
 aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://<YOUR_BUCKET_NAME>/scp-boundary/
 ```
 
-[scpBoundaryPolicy.json](resources/s3-scp-boundary/scpBoundaryPolicy.json)：对 Pro Account 中的管理资源进行保护。该策略主要包含以下权限限制：
+- [scpBoundaryPolicy.json](resources/s3-scp-boundary/scpBoundaryPolicy.json)：对 Pro Account 中的管理资源进行保护。该策略主要包含以下权限限制：
 
-- 禁止针对  ```Owner: SCP-Supervisor``` 标签的资源进行任何操作；
-- 禁止针对 ```arn:aws-cn:iam::<ACCOUNT_ID>:policy/scpPolicy``` 策略进行任何修改操作；
-- 允许其它任何操作（由于该策略是作为权限边界关联到 IAM 实体，因此必须显性允许所有操作）
+	- 禁止针对  ```Owner: SCP-Supervisor``` 标签的资源进行任何操作；
+	- 禁止针对 ```arn:aws-cn:iam::<ACCOUNT_ID>:policy/scpPolicy``` 策略进行任何修改操作；
+	- 允许其它任何操作（由于该策略是作为权限边界关联到 IAM 实体，因此必须显性允许所有操作）
 
 3. **scp-permission/**：限制对 Pro Account 中所有 IAM 实体最大权限边界的策略文件
 
@@ -145,15 +144,15 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 为本方案中的 3 个 Lambda 函数创建一个统一的 IAM Role。
 >您还可以根据需要进一步缩小权限，为每个 Lambda 函数创建独立的 IAM Role。
 
-通过控制台，IAM > 策略 > 创建策略：  
+通过控制台，```IAM > 策略 > 创建策略```：  
 ![CreatePolicy](png/Admin-02-createPolicy.png "CreatePolicy")
 
-此策略的目的是授予对象 STS 的全部访问权限，将该策略命名为 ```STSFullAccess```。
+此策略的目的是授予对于 STS 的全部访问权限，将该策略命名为 ```STSFullAccess```。
 
-通过控制台，IAM > 角色 > 创建角色，选择为 Lambda 创建角色：  
+通过控制台，```IAM > 角色 > 创建角色```，选择为 Lambda 创建角色：  
 ![CreateRole-Trust](png/Admin-03-createRole-trust.png "CreateRole-Trust")
 
-在【Attach 权限策略】时，选择以下 6 个托管策略：  
+在 ```Attach 权限策略``` 步骤中，选择以下 6 个托管策略：  
 ![CreateRole-policies](png/Admin-04-createRole-policies.png "CreateRole-policies")
 
 其中前 5 个策略为 AWS 托管策略，最后一个是刚刚创建的客户托管策略。
@@ -164,11 +163,15 @@ DynamoDB Table 将记录不同 Pro Account 使用了哪个权限边界策略文�
 
 其中 scpBoundaryPolicy 用于保护 Pro Account 中创建出来的管理资源，scpPermissionsPolicy 用于限制 Pro Account 中 IAM 实体的最大权限。
 
-通过控制台，DynamoDB > 表 > 创建表，表的名称为 ```scp-control-record```：
+通过控制台，```DynamoDB > 表 > 创建表```，表的名称为 ```scp-control-record```：
 ![DDB-createTable](png/Admin-06-ddb-createTable.png "DDB-createTable")
 
 ## Lambda Function
-本方案中需要创建 3 个 Lambda 函数对 Pro Account 进行操作，功能分别为：初始化环境，更新权限边界策略，自动向 IAM 实体关联权限边界策略。
+本方案中需要创建 3 个 Lambda 函数对 Pro Account 进行操作：
+
+1. **scp-01-Initial**：初始化环境
+2. **scp-02-Update**：更新权限边界策略
+3. **scp-03-Permission**：自动向 IAM 实体关联权限边界策略。
 
 ### scp-01-Initial
 
@@ -197,7 +200,7 @@ S3\_POLICY | s3://`<YOUR_BUCKET_NAME>`/account-setting/trailS3BucketPolicy.json
 TABLE\_NAME | scp-control-record
 TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 
-### scp-02-Initial
+### scp-02-Update
 
 ```
 aws lambda create-function --function-name scp-02-Update \
@@ -267,7 +270,7 @@ aws events put-targets --rule scp-rule \
 需要创建两个 API：
 
 - scp/ini：初始化 Pro Account
-- scp/update：根据需要调整 scpPermission
+- scp/update：根据需要调整 scpPermission 策略
 
 创建 APIs：
 
@@ -293,7 +296,7 @@ aws apigateway create-rest-api --name scp \
     "disableExecuteApiEndpoint": false
 }
 ```
-记录下返回的 id。
+记录下返回的 id（作为 rest-api-id）。
 
 ### 创建资源：ini
 
@@ -316,7 +319,7 @@ aws apigateway get-resources --rest-api-id xxxxxx --region cn-north-1
 }
 ```
 
-记录下返回的 id。
+记录下返回的 id（作为 parent-id）。
 
 创建资源：
 
@@ -412,3 +415,7 @@ aws apigateway create-deployment --rest-api-id xxxxxxx \
 
 通过 API Gateway 控制台，```API > scp > 阶段 > poc > /ini > POST``` 和 ```API > scp > 阶段 > poc > /update > POST``` 可以查看到两个 API 的调用 URL，如下图：
 ![InvokeURL](png/Admin-07-InvokeURL.png "InvokeURL")
+
+API 的使用参考 README 文档中的使用说明部分。
+
+[返回 README](../README.md#使用说明)
