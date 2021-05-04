@@ -1,4 +1,4 @@
-# SCP Workaround in AWS China Regions
+#SCP Workaround in AWS China Regions
 
 中文 ｜ [English](README-ENG.md)
 
@@ -12,105 +12,22 @@
 2. 无服务器化。本方案无需部署 EC2，无需考虑操作系统层的运维工作。  
 3. 低成本。无服务器化方案通常机遇调用次数进行计费，本方案仅在用户创建 IAM 实体时产生调用，使用成本接近于 0。
 
-**注意**：本方案不具备追溯功能，即：在部署本方案之前创建的所有 IAM 实体的权限边界不受本方案控制。
+**注意**：本方案不具备追溯功能，即在部署本方案之前创建的所有 IAM 实体的权限边界不受本方案控制。
 
-# 架构设计
-## 总体架构介绍
-当用户在 AWS 内创建 IAM 实体（IAM User 或 IAM Role）时，会产生一个事件。本方案就是利用这个事件来触发一个 Lambda 函数，利用这个 Lambda 函数为创建出来的 IAM 实体关联一个权限边界，以此对新创建的 IAM 实体进行权限控制。整个过程如下图所示：  
-![DesignDraft](png/01-DesignDraft.png "DesignDraft")
+可以从 [这里](/architecture/Architecture-CHN.md) 查看关于架构设计的详细说明。
 
-但从实际应用的角度来看，需要考虑三个关键问题：
-
-1. 当创建出来的 IAM 实体拥有 Admin 权限、或 IAM 权限时，如何确保上述实现机制不被破坏（例如：使用者利用所拥有的 Admin 权限删除 lambda 函数、解除被关联上的权限边界，等等）
-2. 需要 SCP 功能的企业往往拥有多个账号，上述方案如何实现对多账号的统一管理？并确保可以针对不同账号设置权限边界？
-3. 当被管理账号越来越多时，如何追溯不同账号使用了那种权限边界策略？
-
-为了解决上述三个关键问题，需要增加以下服务：
- 
-- Amazon API Gateway
-- Amazon S3
-- Amazon EventBridge
-- Amazon DynamoDB
-- Amazon SNS
-
-完整架构如下：  
-![02-Architecture](png/02-Architecture.png "Architecture")
-
-Admin Account 代表管理账号，用于部署、配置相关的管理资源。  
-Pro Account 代表生产账号，即需要通过类似 SCP 的功能进行权限限制的被管账号。
-
-## Admin Account 
-Admin Account 的作用包括：
-
-1. 对新纳管的账号进行初始化，需要在被纳管账号中创建以下资源：
-
-	- S3 bucket: 用于创建 Cloudtrail trail
-	- Cloudtrail trail：用于捕获创建 IAM 实体时产生的实践
-	- EventBridge Rule：用于将符合要求的事件传递给 Admin 账号中的事件总线
-	- IAM Policy：需要被强制绑定到所有新创建 IAM 实体上的策略
-
-2. 管理 Pro Account 中需要用到的权限边界策略，需要在 **Admin Account** 中创建以下资源：
-	- S3 Bucket：保存初始化 Pro Account 所需的配置文件、策略文件
-	- DynamoDB Table：记录 Pro Account 使用了哪个权限边界策略文件
-
-3. 接收 Pro Account 中的事件，利用事件触发 Lambda 函数，以便对 Pro Account 中创建出来的 IAM 实体关联权限边界策略。需要在 **Admin Account** 中创建以下资源：
-	- EventBridge Bus：用于接收从 Pro Account 发送的 IAM 事件
-	- EventBridge Rule：用于过滤出需要的 IAM 事件（(CreateUser 和 CreateRole）
-
-4. 为了实现上述功能的自动化，还需要在 **Admin Account** 中创建以下资源：
-	- API Gateway:
-		- ini: 初始化 Pro Account
-		- update: 更新权限边界策略
-	- Lambda:
-		- scpIni: 初始化 Pro Account，通过 ```ini``` API 触发
-		- scpUpdate: 更新权限边界策略，通过 ```update``` API 处罚
-		- scpBoundary: 对 Pro Account 的 IAM 实体自动关联权限边界策略，通过 Pro Account 中的 IAM 事件触发
-	- SNS（可选）: 向系统管理员发送通知邮件
-
-## Pro Account
-Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Admin Account 的控制。需要在 Pro Account 中部署以下资源（如无特殊说明，以下资源均为必要资源）：
-
-1. IAM Role，需预先在 Pro Account 中创建：
-	- adminRole（推荐）：超级管理角色，管理员可以在 Admin Account 中通过 switch role 的方式获得 Pro Account 的全部管理权限
-	- scpRole：Admin Account 中的 scpBoundary 函数在执行时需要继承的角色
-
-2. 通过 **Admin Account** 中的 scpIni 函数创建：
-	- S3 Bucket: 用于创建 Cloudtrail trail
-	- Cloudtrail Trail：用于捕获创建 IAM 实体时产生的事件
-	- EventBridge Rule：用于将符合要求的事件传递给 Admin 账号中的事件总线
-	- IAM Policy：需要被强制绑定到所有新创建 IAM 实体上的策略
-
-## 权限边界策略说明
-为实现对 Pro Account 中的 IAM 实体进行权限控制，需要通过 Admin Account 中的 Lambda 函数对 IAM 实体设置权限边界（Permissions Boundary）。
-
-权限边界策略与 IAM 策略的交集决定了 IAM 实体所拥有的实际权限，详细说明可参考 [官方文档](https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/access_policies_boundaries.html)，其关系说明如下图：  
-![EffectPermissions](png/03-EffectPermissions.png "EffectPermissions")
-
-本方案中，权限边界策略需要承担两方面的功能：
-
-1. 限定 Pro Account 中所有 IAM 实体的最大权限边界；
-2. 保护本方案在 Pro Account 中创建出来的资源不被破坏。
-
-其中第一点根据不同的 Pro Account 而有所不同，第二点面对所有 Pro Account 都相同。因此，本方案中将权限边界策略分为两个不同的 json 文件：
-
-1. scp-boundary：声明哪些资源受到保护，通常情况下不会改变该文件
-2. scp-permission：声明 Pro Account 中 IAM 实体的权限边界，管理员根据实际需要按照标准的 IAM 策略规范编写该文件
-
-上述两个文件的内容将在部署章节中加以说明，<mark>最终关联给 IAM 实体的权限边界策略：**scpPolicy = scpBoundary + scpPermission**</mark>
-
-# 部署及使用说明
-## 部署说明
+#部署及使用说明
+##部署说明
 1. [在 Admin Account 中部署所需资源](deployment/AdminAccount-CHN.md)，仅需部署一次。
 
 2. [在 Pro Account 中部署所需资源](deployment/ProAccount-CHN.md)，每个 Pro Account 投入使用前部署一次。
 
 ##使用说明
-以下操作以 postman 为例进行演示。
 
 ###初始化 Pro Account
 
 对象：Pro Account。  
-方式：调用 scp/ini API。
+方式：调用 ```scp/ini``` API。
 
 登录 **Admin Account** 的 API Gateway 控制台，通过 ```APIs > scp > 阶段 > poc > /ini > POST```，查看调用 URL：
 ![InvokeURL](deployment/png/Admin-07-InvokeURL.png "InvokeURL")
@@ -121,26 +38,26 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://<YOUR_BUCKET_NAME>/scp-permission/
 ```
 
-利用 postman 调用 API：  
-![Call-scp/ini](png/04-CallScpIni.png "Call-scp/ini")
+使用 postman 调用 API：  
+>也可以使用其它方式调用 API
+
+![Call-scp/ini](png/01-CallScpIni.png "Call-scp/ini")
 
 如果不输入 ```scpPermission_PATH``` 参数，[scpBoundaryPolicy.json](deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json) 将会作为权限边界策略关联给 Pro Account 中每一个创建出来的 IAM 实体。
 
-调用 scp/ini 后，Lambda 函数 [scp-01-Initial](deployment/code/scp-01-Initial.py) 将被触发，在 Pro Account 中创建所需的管理资源。该函数的处理逻辑如下：  
-![CodeDesign-ini](png/05-CodeDesign-ini.png "CodeDesign-ini")
+调用 ```scp/ini``` 后，Lambda 函数 [scp-01-Initial](deployment/code/scp-01-Initial.py) 将被触发，在 Pro Account 中创建所需的管理资源。
 
 ###关联权限边界
 
 对象：Pro Account 被创建的 IAM 实体。  
 方式：自动。
 
-完成对 Pro Account 的初始化工作后，CreateUser 和 CreateRole 的事件均会触发  [scp-03-Permission](deployment/code/scp-03-Permission.py) 函数，自动关联权限简介策略。该函数的处理逻辑如下：  
-![CodeDesign-permission](png/06-CodeDesign-permission.png "CodeDesign-permission")
+完成对 Pro Account 的初始化工作后，CreateUser 和 CreateRole 的事件均会触发  [scp-03-Permission](deployment/code/scp-03-Permission.py) 函数，自动关联权限边界策略。
 
 ###更新权限边界策略
 
 对象：Pro Account 中的权限边界策略。  
-方式：调用 scp/update API。
+方式：调用 ```scp/update``` API。
 
 登录 **Admin Account** 的 API Gateway 控制台，通过 ```APIs > scp > 阶段 > poc > /update > POST```，查看调用 URL。
 
@@ -155,5 +72,13 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 
 其中 scpPermission_Path 是更新的权限策略文件所在的 S3 存储路径。 
 
-调用 scp/update 后，Lambda 函数 [scp-02-Update](deployment/code/scp-02-Update.py) 将被触发，在 Pro Account 中创建所需的管理资源。该函数的处理逻辑如下：  
-![CodeDesign-update](png/07-CodeDesign-update.png "CodeDesign-update")
+调用 ```scp/update``` 后，Lambda 函数 [scp-02-Update](deployment/code/scp-02-Update.py) 将被触发，在 Pro Account 中更新权限边界策略。
+
+#其它注意事项
+由于本方案独立于 AWS Organizations 功能，因此它无法完全取代 SCP 功能。在实际使用中，还需要注意以下几点：
+
+1. 本方案不支持类似 SCP 的 [策略继承](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_inheritance.html) 功能，所有 Pro Accounts 的权限边界策略均相互独立。
+2. 本方案使用了 IAM 的 [权限边界](https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/access_policies_boundaries.html) 功能， Pro Account 中的所有 IAM 实体将不能再设置其它权限边界策略。
+3. 本方案中，通过将 [scpBoundaryPolicy.json](resources/s3-scp-boundary/scpBoundaryPolicy.json) 与用户自定义的 scpPermission 策略文件组合，形成作为权限边界策略的 scpPolicy 策略文件。根据 [IAM 对象配额](https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entities) 中的说明，这个最终的 scpPolicy 策略文件不能超过 6,144 个字符。
+
+>在 [scp-02-Update](deployment/code/scp-02-Update.py) 函数中已包含了对组合后的 scpPolicy 进行字符数检查的代码。
