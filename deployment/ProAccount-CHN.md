@@ -1,8 +1,8 @@
-#Deployment-in-Pro-Acount
+# Deployment-in-Pro-Acount
 
 中文 ｜ [English](ProAccount-ENG.md)
 
-##资源创建
+## 资源创建
 用户只需在 Pro Account 手工创建 1 个资源：IAM Role。
 
 Pro Account 中所需要的其它管理资源会通过 Lambda 函数 [scp-01-Initial](code/scp-01-Initial.py) 进行创建，该函数部署在 Admin Account 中，通过 scp/ini API 触发。在函数执行过程中，需要通过 Assume Role 的方式获取在 Pro Account 中的必要权限。这个被 Assume 的 Role 就是需要用户手工创建的 IAM Role。其创建过程如下：
@@ -27,7 +27,7 @@ Pro Account 中所需要的其它管理资源会通过 Lambda 函数 [scp-01-Ini
 输入角色名称：```scpRole```  
 ![scpRole](png/Pro-02-scpRole.png "scpRole")
 
-##补充说明
+## 补充说明
 由于本方案不具备追溯性，因此在生产账号投入使用前，除了创建账号时产生的 IAM 实体外，建议只保留 1 个具有 ```AdministratorAccess``` 权限的 IAM 实体（User 或 Role）。这个额外的 IAM 实体作为日常运维使用。
 
 - 如果 Pro Account 账号通过 AWS Organizations 创建，在账号内会自动创建一个 IAM Role，信任实体为 AWS Organizations 的主账号，权限为 ```AdministratorAccess``` 。

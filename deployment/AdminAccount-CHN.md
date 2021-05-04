@@ -75,7 +75,7 @@ aws sns create-topic --name CN-NotifyMe --region cn-north-1
 
 需要通过管理员的邮箱确认上述订阅。
 
-##S3Bucket
+## S3Bucket
 创建 S3 Bucket：
 
 ```

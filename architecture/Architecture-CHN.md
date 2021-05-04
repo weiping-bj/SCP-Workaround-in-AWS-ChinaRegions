@@ -1,8 +1,8 @@
-#架构设计
+# 架构设计
 
 中文 ｜ [English](Architecture-ENG.md)
 
-##总体架构介绍
+## 总体架构介绍
 当用户在 AWS 内创建 IAM 实体（IAM User 或 IAM Role）时，会产生一个事件。本方案就是利用这个事件来触发一个 Lambda 函数，利用这个 Lambda 函数为创建出来的 IAM 实体关联一个权限边界，以此对新创建的 IAM 实体进行权限控制。整个过程如下图所示：  
 ![DesignDraft](png/01-DesignDraft.png "DesignDraft")
 
@@ -26,7 +26,7 @@
 Admin Account 代表管理账号，用于部署、配置相关的管理资源。  
 Pro Account 代表生产账号，即需要通过类似 SCP 的功能进行权限限制的被管账号。
 
-##Admin Account 
+## Admin Account 
 Admin Account 的作用包括：
 
 1. 对新纳管的账号进行初始化，需要在被纳管账号中创建以下资源：
@@ -54,7 +54,7 @@ Admin Account 的作用包括：
 		- scpBoundary: 对 Pro Account 的 IAM 实体自动关联权限边界策略，通过 Pro Account 中的 IAM 事件触发
 	- SNS（可选）: 向系统管理员发送通知邮件
 
-##Pro Account
+## Pro Account
 Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Admin Account 的控制。需要在 Pro Account 中部署以下资源（如无特殊说明，以下资源均为必要资源）：
 
 1. IAM Role，需预先在 Pro Account 中创建：
@@ -67,7 +67,7 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 	- EventBridge Rule：用于将符合要求的事件传递给 Admin 账号中的事件总线
 	- IAM Policy：需要被强制绑定到所有新创建 IAM 实体上的策略
 
-##权限边界策略说明
+## 权限边界策略说明
 为实现对 Pro Account 中的 IAM 实体进行权限控制，需要通过 Admin Account 中的 Lambda 函数对 IAM 实体设置权限边界（Permissions Boundary）。
 
 权限边界策略与 IAM 策略的交集决定了 IAM 实体所拥有的实际权限，详细说明可参考 [官方文档](https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/access_policies_boundaries.html)，其关系说明如下图：  
@@ -95,21 +95,21 @@ Pro Account 用于承载业务系统，其中 IAM 实体的最大权限受到 Ad
 
 - [test-cloudtrail-deny.json](resources/s3-scp-permission/test-cloudtrail-deny.json)：禁止所有 CloudTrail 操作。
 
-##Lambda 函数说明
+## Lambda 函数说明
 
-###scp-01-Initial
+### scp-01-Initial
 可从 [这里](../deployment/code/scp-01-Initial.py) 查看函数源代码。
 
 通过调用 ```scp/ini``` API 进行触发，在 Pro Account 中创建所需的管理资源。该函数的处理逻辑如下：  
 ![CodeDesign-ini](png/04-CodeDesign-ini.png "CodeDesign-ini")
 
-###scp-02-Update
+### scp-02-Update
 可从 [这里](../deployment/code/scp-02-Update.py) 查看函数源代码。
 
 通过调用 ```scp/update```API进行触发，在 Pro Account 中更新权限边界策略。该函数的处理逻辑如下：  
 ![CodeDesign-update](png/06-CodeDesign-update.png "CodeDesign-update")
 
-###scp-03-Permission
+### scp-03-Permission
 可从 [这里](../deployment/code/scp-03-Permission.py) 查看函数源代码。
 
 通过 CreateUser 或 CreateRole 的事件触发，自动关联权限边界策略。该函数的处理逻辑如下：  

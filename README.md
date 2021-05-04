@@ -1,8 +1,6 @@
-#SCP Workaround in AWS China Regions
+# SCP Workaround in AWS China Regions
 
 中文 ｜ [English](README-ENG.md)
-
-[toc]
 
 [2019 年 3 月](https://aws.amazon.com/cn/about-aws/whats-new/2019/03/service-control-policies-enable-fine-grained-permission-controls/)，AWS 发布了[服务控制策略](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_scps.html)（Service Control Policie，SCP）功能。这是一种组织策略，可用于管理 AWS Organizations 中的权限。
 
@@ -16,15 +14,15 @@
 
 可以从 [这里](/architecture/Architecture-CHN.md) 查看关于架构设计的详细说明。
 
-#部署及使用说明
-##部署说明
+# 部署及使用说明
+## 部署说明
 1. [在 Admin Account 中部署所需资源](deployment/AdminAccount-CHN.md)，仅需部署一次。
 
 2. [在 Pro Account 中部署所需资源](deployment/ProAccount-CHN.md)，每个 Pro Account 投入使用前部署一次。
 
-##使用说明
+## 使用说明
 
-###初始化 Pro Account
+### 初始化 Pro Account
 
 对象：Pro Account。  
 方式：调用 ```scp/ini``` API。
@@ -47,14 +45,14 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 
 调用 ```scp/ini``` 后，Lambda 函数 [scp-01-Initial](deployment/code/scp-01-Initial.py) 将被触发，在 Pro Account 中创建所需的管理资源。
 
-###关联权限边界
+### 关联权限边界
 
 对象：Pro Account 被创建的 IAM 实体。  
 方式：自动。
 
 完成对 Pro Account 的初始化工作后，CreateUser 和 CreateRole 的事件均会触发  [scp-03-Permission](deployment/code/scp-03-Permission.py) 函数，自动关联权限边界策略。
 
-###更新权限边界策略
+### 更新权限边界策略
 
 对象：Pro Account 中的权限边界策略。  
 方式：调用 ```scp/update``` API。
@@ -74,7 +72,7 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 
 调用 ```scp/update``` 后，Lambda 函数 [scp-02-Update](deployment/code/scp-02-Update.py) 将被触发，在 Pro Account 中更新权限边界策略。
 
-#其它注意事项
+# 其它注意事项
 由于本方案独立于 AWS Organizations 功能，因此它无法完全取代 SCP 功能。在实际使用中，还需要注意以下几点：
 
 1. 本方案不支持类似 SCP 的 [策略继承](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_inheritance.html) 功能，所有 Pro Accounts 的权限边界策略均相互独立。

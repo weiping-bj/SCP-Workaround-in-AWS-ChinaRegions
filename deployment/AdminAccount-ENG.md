@@ -76,7 +76,7 @@ Through the AWS console, select ```Amazon SNS > Subscriptions > Create Subscript
 
 You need to confirm this subscription via admin email.
 
-##S3Bucket
+## S3Bucket
 Create S3 Bucket:  
 
 ```

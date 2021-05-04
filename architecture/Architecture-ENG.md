@@ -1,4 +1,4 @@
-#Architecture Design
+# Architecture Design
 
 [中文](Architecture-CHN.md) ｜ English
 
@@ -27,7 +27,7 @@ The whole architecture is as follows:
 Admin Account is used to deploy and configure related administrative resources.  
 Pro Account is a managed account that requires permission restrictions through SCP functionality.
 
-##Admin Account 
+## Admin Account 
 The function of Admin Account: 
 
 1. To initialize a Pro Account, need to create the following resources in **Pro Account**:
@@ -54,7 +54,7 @@ The function of Admin Account:
 		- scpBoundary: Associating a policy boundary to an IAM entity in a Pro Account, triggered by an IAM event in the Pro Account
 	- SNS (optional): Send information email to System Operator
 
-##Pro Account
+## Pro Account
 Pro Account is used to host the production system where the maximum privileges of the IAM entity are controlled by the Admin Account. The following resources need to be deployed in the Pro Account (all of the following resources are required unless specified):
 
 1. IAM Role, created in Pro Account:  
@@ -67,7 +67,7 @@ Pro Account is used to host the production system where the maximum privileges o
 	- EventBridge Rule: To pass filtered events to the Event Bus in Admin Account
 	- IAM Policy: Policies that need to be attached to all newly created IAM entities
 
-##Permissions Boundary Policy
+## Permissions Boundary Policy
 In order to control the permissions of IAM entities in Pro Account, you need to set the Permissions Boundary for IAM entities through the Lambda function in Admin Account.
 
 The intersection of the permission boundary policy and IAM policy determines the actual permissions held by the IAM entity, as described in detail in [official docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)：  
@@ -95,23 +95,23 @@ This solution provides a complete scp-boundary policy file and an example scp-pe
 
 - [test-cloudtrail-deny.json](resources/s3-scp-permission/test-cloudtrail-deny.json): this policy file disables all CloudTrail operations.
 
-##Lambda Functions
+## Lambda Functions
 
-###scp-01-Initial
+### scp-01-Initial
 
 You may check the source code from [here](../deployment/code/scp-01-Initial.py).  
 
 After calling ```scp/ini```, the Lambda function will be triggered to create the required administrative resources in the Pro Account. The processing logic of this function is as follows:  
 ![CodeDesign-ini](png/05-CodeDesign-ini.png "CodeDesign-ini")
 
-###scp-02-Update
+### scp-02-Update
 
 You may check the source code from [here](../deployment/code/scp-02-Update.py).  
 
 After calling ```scp/update```, the Lambda function will be triggered to update permissions boundary policy in the Pro Account. The processing logic of this function is as follows:   
 ![CodeDesign-update](png/06-CodeDesign-update.png "CodeDesign-update")
 
-###scp-03-Permission
+### scp-03-Permission
 
 You may check the source code from [here](../deployment/code/scp-03-Permission.py).  
 

@@ -2,8 +2,6 @@
 
 [中文](README.md) ｜ English
 
-[toc]
-
 [Mar 25, 2019](https://aws.amazon.com/about-aws/whats-new/2019/03/service-control-policies-enable-fine-grained-permission-controls/?nc1=h_ls)，AWS released [Service Control Policie (SCP)](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_scps.html) feature. This offers central control over the maximum available permissions for all accounts in your organization. 
 
 Till April 2021, the two AWS regions in mainland China (BJS, ZHY) do not support SCP functionality. An workaround solution of SCP functionality in BJS and ZHY is discussed below. This solution has the following features:
@@ -23,9 +21,9 @@ You may check the detailed description of architecture design from [here](/archi
 
 2. [Resources deployment in Pro Account](deployment/ProAccount-ENG.md), fullfil the deployment in each Pro Account once before it is put into use.
 
-##Operation Guide
+## Operation Guide
 
-###Initialize Pro Account
+### Initialize Pro Account
 
 Target: Pro Account.  
 Method: Call ```scp/ini``` API.
@@ -48,14 +46,14 @@ If you call the API without scpPermission_PATH parameter, [scpBoundaryPolicy.jso
 
 After calling ```scp/ini```, the Lambda function [scp-01-Initial](deployment/code/scp-01-Initial.py) will be triggered to create the required administrative resources in the Pro Account. 
 
-###Attaching Permisions Boundary
+### Attaching Permisions Boundary
 
 Target: IAM entity in Pro Account.  
 Method: Auto-attaching.
 
 After completing the initialization of the Pro Account, both IAM events (CreateUser and CreateRole) could trigger the [scp-03-Permission](deployment/code/scp-03-Permission.py) function, which automatically attaching the permissions boundary policy. 
 
-###Update Permissions Boundary Policy
+### Update Permissions Boundary Policy
 
 Target: Permissions boundary policy in Pro Account.  
 Method: Call ```scp/update``` API.
@@ -75,7 +73,7 @@ scpPermission_Path is the S3 storage path where the updated permission policy fi
 
 After calling ```scp/update```, the Lambda function [scp-02-Update](deployment/code/scp-02-Update.py) will be triggered to update permissions boundary policy in the Pro Account.  
 
-#Other Notes
+# Other Notes
 Since this solution is independent of the AWS Organizations function, it is not a complete replacement for the SCP feature. In practice, the following points also need to be noted:  
 
 1. This solution does not support [policy inheritance](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_inheritance.html) like SCP, all Pro Accounts' permission boundary policies are independent of each other.
