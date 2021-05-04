@@ -40,7 +40,7 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 Call API with postman:
 >You call the API in any other ways as well.
 
-![Call-scp/ini](png/04-CallScpIni.png "Call-scp/ini")
+![Call-scp/ini](png/01-CallScpIni.png "Call-scp/ini")
 
 If you call the API without scpPermission_PATH parameter, [scpBoundaryPolicy.json](deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json) will be attached with each created IAM entity in the Pro Account as a permissions boundary policy.
 
