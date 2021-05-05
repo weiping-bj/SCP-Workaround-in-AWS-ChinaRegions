@@ -2,7 +2,7 @@
 
 [中文](README.md) ｜ English
 
-[Mar 25, 2019](https://aws.amazon.com/about-aws/whats-new/2019/03/service-control-policies-enable-fine-grained-permission-controls/?nc1=h_ls)，AWS released [Service Control Policie (SCP)](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_scps.html) feature. This offers central control over the maximum available permissions for all accounts in your organization. 
+[Mar 25, 2019](https://aws.amazon.com/about-aws/whats-new/2019/03/service-control-policies-enable-fine-grained-permission-controls/?nc1=h_ls)，AWS released [Service Control Policies (SCP)](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_scps.html) feature. This offers central control over the maximum available permissions for all accounts in your organization. 
 
 Till April 2021, the two AWS regions in mainland China (BJS, ZHY) do not support SCP functionality. An workaround solution of SCP functionality in BJS and ZHY is discussed below. This solution has the following features:
 
@@ -12,7 +12,7 @@ Till April 2021, the two AWS regions in mainland China (BJS, ZHY) do not support
 
 **NOTE**: This solution is not retroactive, that is, the permission boundaries of all IAM entities created prior to the deployment of this solution are not controlled by this solution.
 
-You may check the detailed description of architecture design from [here](/architecture/Architecture-ENG.md).
+You may check the detailed description of architecture design from [here](architecture/Architecture-ENG.md).
 
 # Deployment and Operation Guide
 ## Deployment Guide

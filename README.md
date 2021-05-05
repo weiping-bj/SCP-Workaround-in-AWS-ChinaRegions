@@ -2,7 +2,7 @@
 
 中文 ｜ [English](README-ENG.md)
 
-[2019 年 3 月](https://aws.amazon.com/cn/about-aws/whats-new/2019/03/service-control-policies-enable-fine-grained-permission-controls/)，AWS 发布了[服务控制策略](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_scps.html)（Service Control Policie，SCP）功能。这是一种组织策略，可用于管理 AWS Organizations 中的权限。
+[2019 年 3 月](https://aws.amazon.com/cn/about-aws/whats-new/2019/03/service-control-policies-enable-fine-grained-permission-controls/)，AWS 发布了[服务控制策略](https://docs.aws.amazon.com/zh_cn/organizations/latest/userguide/orgs_manage_policies_scps.html)（Service Control Policies，SCP）功能。这是一种组织策略，可用于管理 AWS Organizations 中的权限。
 
 截止到 2021 年 4 月，AWS 位于中国大陆地区的两个区域（BJS、ZHY）暂未支持 SCP 功能。下面将讨论一种替代方案，以便在 BJS 和 ZHY 实现类似 SCP 的功能。本方案具有如下特点：  
 
@@ -12,7 +12,7 @@
 
 **注意**：本方案不具备追溯功能，即在部署本方案之前创建的所有 IAM 实体的权限边界不受本方案控制。
 
-可以从 [这里](/architecture/Architecture-CHN.md) 查看关于架构设计的详细说明。
+可以从 [这里](architecture/Architecture-CHN.md) 查看关于架构设计的详细说明。
 
 # 部署及使用说明
 ## 部署说明
