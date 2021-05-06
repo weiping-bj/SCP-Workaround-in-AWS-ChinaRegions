@@ -25,6 +25,28 @@
 # 部署说明
 部署说明中的命令参考 [AWS CLI Version 2 命令规范](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/index.html#cli-aws)，需要根据 [官方文档](https://docs.aws.amazon.com/zh_cn/cli/latest/userguide/install-cliv2.html) 提前安装好 AWS CLI version 2 工具，并配置好拥有 Admin Account 中 **管理员权限** 的 AKSK。如您已经安装 AWS CLI Version 1，可对应本方案参考 [AWS CLI Version 1 命令规范](https://docs.aws.amazon.com/cli/latest/reference/)，本方案对可能存在的命令差异不再做进一步说明。
 
+将本方案代码克隆到本地：
+
+```
+git clone  https://github.com/weiping-bj/SCP-Workaround-in-AWS-ChinaRegions.git
+```
+
+进入方案目录：
+
+```
+cd SCP-Workaround-in-AWS-ChinaRegions
+```
+
+设置部署时需要用到的常量，```ACCOUNT_ID``` 和 ```BUCKET_NAME```：
+
+```
+ACCOUNT_ID=ID=`aws sts get-caller-identity |jq -r ".Account"`
+
+BUCKET_NAME=scp-poc-$ACCOUNT_ID
+```
+
+>如未安装 [jq](https://stedolan.github.io/jq/download/) 工具，也可以手工设置 ACCOUNT_ID
+
 ## EventBridge Bus
 每个 AWS 账号中都包含一个默认的事件总线：default bus，可以使用这个事件总线接受来自其它账号的事件。但建议为本方案创建专门的事件总线：
 
@@ -40,7 +62,7 @@ aws events create-event-bus --name scp-bus --region cn-north-1
 aws events put-permission \
 --event-bus-name scp-bus \
 --action events:PutEvents \
---principal <YOUR_ADMIN_ACCOUND_ID> \
+--principal $ACCOUNT_ID \
 --statement-id allow_account_to_put_events \
 --region cn-north-1
 ```
@@ -79,7 +101,7 @@ aws sns create-topic --name CN-NotifyMe --region cn-north-1
 创建 S3 Bucket：
 
 ```
-aws s3api create-bucket --bucket <YOUR_BUCKET_NAME> \
+aws s3api create-bucket --bucket $BUCKET_NAME \
 --region cn-north-1 \
 --create-bucket-configuration LocationConstraint=cn-north-1
 ```
@@ -89,13 +111,13 @@ aws s3api create-bucket --bucket <YOUR_BUCKET_NAME> \
 1. **account-setting/**：初始化 Pro Account 时需要用到的配置文件。
 
 ```
-aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
+aws s3api put-object --bucket $BUCKET_NAME \
 --key account-setting/
 ```
 创建完成后，上传所需配置文件，共 4 个：
 
 ```
-aws s3 sync deployment/resources/s3-account-setting/ s3://<YOUR_BUCKET_NAME>/account-setting/
+aws s3 sync deployment/resources/s3-account-setting/ s3://$BUCKET_NAME/account-setting/
 ```
 
 - [eventRuleEventPattern.json](resources/s3-account-setting/eventRuleEventPattern.json)：在 Pro Account 中创建 Event Rule 时，设定 Event Pattern 需要用到的文件。表示接收调用成功的 CreateUser 或 CreateRole 事件。
@@ -106,14 +128,14 @@ aws s3 sync deployment/resources/s3-account-setting/ s3://<YOUR_BUCKET_NAME>/acc
 2. **scp-boundary/**：保护 Pro Account 中控制资源所需要用到的策略文件。
 
 ```
-aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
+aws s3api put-object --bucket $BUCKET_NAME \
 --key scp-boundary/
 ```
 
 创建完成后，上传配置文件，共 1 个：
 
 ```
-aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://<YOUR_BUCKET_NAME>/scp-boundary/
+aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://$BUCKET_NAME/scp-boundary/
 ```
 
 - [scpBoundaryPolicy.json](resources/s3-scp-boundary/scpBoundaryPolicy.json)：对 Pro Account 中的管理资源进行保护。该策略主要包含以下权限限制：
@@ -125,7 +147,7 @@ aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://<YOUR
 3. **scp-permission/**：限制对 Pro Account 中所有 IAM 实体最大权限边界的策略文件
 
 ```
-aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
+aws s3api put-object --bucket $BUCKET_NAME \
 --key scp-permission/
 ```
 
@@ -134,7 +156,7 @@ aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
 本方案中提供 1 个策略文件：以便进行功能验证，该策略文件禁止所有 CloudTrail 操作：[test-cloudtrail-deny.json](resources/s3-scp-permission/test-cloudtrail-deny.json)
 
 ```
-aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://<YOUR_BUCKET_NAME>/scp-permission/
+aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://$BUCKET_NAME/scp-permission/
 ```
 
 <mark>最终关联给 IAM 实体的权限边界策略：**scpPolicy = scpBoundary + scpPermission**</mark>
@@ -155,7 +177,7 @@ aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://
 在 ```Attach 权限策略``` 步骤中，选择以下 6 个托管策略：  
 ![CreateRole-policies](png/Admin-04-createRole-policies.png "CreateRole-policies")
 
-其中前 5 个策略为 AWS 托管策略，最后一个是刚刚创建的客户托管策略。
+其中前 5 个策略为 AWS 托管策略，最后一个是刚刚创建的客户托管策略。将角色命名为 ```scpRole```。
 
 ## DynamoDB Table
 DynamoDB Table 将记录不同 Pro Account 使用了哪个权限边界策略文件，以及存放在 S3 的路径。示例如下图：  
@@ -177,17 +199,25 @@ DynamoDB Table 将记录不同 Pro Account 使用了哪个权限边界策略文�
 
 ```
 aws lambda create-function --function-name scp-01-Initial \
---role arn:aws-cn:iam::<ADMIN_ACCOUNT_ID>:role/scpRole \
+--role "arn:aws-cn:iam::"$ACCOUNT_ID":role/scpRole" \
 --runtime python3.6 \
 --handler lambda_function.lambda_handler \
 --timeout 60 \
 --zip-file fileb://deployment/resources/scp-01-Initial.zip \
+--environment "Variables={ASSUMED_ROLE=scpRole,\
+BOUNDARY_FILE_PATH=s3://$BUCKET_NAME/scp-boundary/scpBoundaryPolicy.json,\
+EVENT_PATTERN=s3://$BUCKET_NAME/account-setting/eventRuleEventPattern.json,\
+ROLE_POLICY=s3://$BUCKET_NAME/account-setting/eventRuleRolePolicy.json,\
+ROLE_TRUST_IDENTITY=s3://$BUCKET_NAME/account-setting/eventRuleRoleTrustRelation.json,\
+S3_POLICY=s3://$BUCKET_NAME/account-setting/trailS3BucketPolicy.json,\
+TABLE_NAME=scp-control-record,\
+TOPIC_ARN=arn:aws-cn:sns:cn-north-1:$ACCOUNT_ID:CN-NotifyMe}" \
 --region cn-north-1
 ```
 
 可以从 [这里](code/scp-01-Initial.py) 查看函数源代码。
 
-函数创建完成后，按照如下表格添加环境变量：
+函数创建同时，添加了如下环境变量：
 
 Key | Value | 
 ----|-----
@@ -204,17 +234,21 @@ TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 
 ```
 aws lambda create-function --function-name scp-02-Update \
---role arn:aws-cn:iam::<ADMIN_ACCOUNT_ID>:role/scpRole \
+--role "arn:aws-cn:iam::"$ACCOUNT_ID":role/scpRole" \
 --runtime python3.6 \
 --handler lambda_function.lambda_handler \
 --timeout 60 \
 --zip-file fileb://deployment/resources/scp-02-Update.zip \
+--environment "Variables={ASSUMED_ROLE=scpRole,\
+BOUNDARY_FILE_PATH=s3://$BUCKET_NAME/scp-boundary/scpBoundaryPolicy.json,\
+TABLE_NAME=scp-control-record,\
+TOPIC_ARN=arn:aws-cn:sns:cn-north-1:$ACCOUNT_ID:CN-NotifyMe}" \
 --region cn-north-1
 ```
 
 可以从 [这里](code/scp-02-Update.py) 查看函数源代码。
 
-函数创建完成后，按照如下表格添加环境变量：
+函数创建同时，添加了如下环境变量：
 
 Key | Value | 
 ----|-----
@@ -227,17 +261,20 @@ TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 
 ```
 aws lambda create-function --function-name scp-03-Permission \
---role arn:aws-cn:iam::<ADMIN_ACCOUNT_ID>:role/scpRole \
+--role "arn:aws-cn:iam::"$ACCOUNT_ID":role/scpRole" \
 --runtime python3.6 \
 --handler lambda_function.lambda_handler \
 --timeout 60 \
 --zip-file fileb://deployment/resources/scp-03-Permission.zip \
+--environment "Variables={ASSUMED_ROLE=scpRole,\
+SCP_BOUNDARY_POLICY=scpPolicy,\
+TOPIC_ARN=arn:aws-cn:sns:cn-north-1:$ACCOUNT_ID:CN-NotifyMe}" \
 --region cn-north-1
 ```
 
 可以从 [这里](code/scp-03-Permission.py) 查看函数源代码。
 
-函数创建完成后，按照如下表格添加环境变量：
+函数创建同时，添加了如下环境变量：
 
 Key | Value | 
 ----|-----
@@ -250,11 +287,11 @@ TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 创建 Event Rule，以允许接收 IAM 的 CreateUser 和 CreateRole 事件：
 
 ```
-aws events put-rule --name scp-rule \
+RULE_ARN=`aws events put-rule --name scp-rule \
 --event-pattern "{\"source\": [\"aws.iam\"], \"detail-type\": [\"AWS API Call via CloudTrail\"], \"detail\": {\"eventSource\": [\"iam.amazonaws.com\"], \"eventName\": [\"CreateUser\", \"CreateRole\"], \"errorCode\": [{\"exists\": false}]}}" \
 --state ENABLED \
 --event-bus-name scp-bus \
---region cn-north-1
+--region cn-north-1 | jq -r ".RuleArn"`
 ```
 
 为创建好的 Event Rule 添加目标，以触发 Lambda 函数：scp-03-Permission：
@@ -262,7 +299,7 @@ aws events put-rule --name scp-rule \
 ```
 aws events put-targets --rule scp-rule \
 --event-bus-name scp-bus \
---targets "Id"="1","Arn"="arn:aws-cn:lambda:cn-north-1:<ADMIN_ACCOUNT_ID>:function:scp-03-Permission" \
+--targets "Id"="1","Arn"="arn:aws-cn:lambda:cn-north-1:"$ACCOUNT_ID":function:scp-03-Permission" \
 --region cn-north-1
 ```
 
@@ -275,11 +312,12 @@ aws events put-targets --rule scp-rule \
 创建 APIs：
 
 ```
-aws apigateway create-rest-api --name scp \
+REST_API_ID=`aws apigateway create-rest-api --name scp \
 --endpoint-configuration types=REGIONAL \
---region cn-north-1
+--region cn-north-1|jq -r ".id"`
 ```
-正常情况下返回创建结果：
+
+如未安装 [jq](https://stedolan.github.io/jq/download/) 工具，也可以手工设置 ```REST_API_ID```。执行 ```create-rest-api``` 后，得到如下返回：
 
 ```
 {
@@ -296,17 +334,17 @@ aws apigateway create-rest-api --name scp \
     "disableExecuteApiEndpoint": false
 }
 ```
-记录下返回的 id（作为 rest-api-id）。
+设置返回的 id 为 ```REST_API_ID```。
 
 ### 创建资源：ini
 
 查看刚创建的 api-gateway 的资源：
 
 ```
-aws apigateway get-resources --rest-api-id xxxxxx --region cn-north-1
+PARENT_ID=`aws apigateway get-resources --rest-api-id $REST_API_ID --region cn-north-1 | jq -r ".items" | jq -r ".[0].id"`
 ```
 
-返回结果：
+如仅执行 ```get-resources```，得到如下返回：
 
 ```
 {
@@ -319,18 +357,18 @@ aws apigateway get-resources --rest-api-id xxxxxx --region cn-north-1
 }
 ```
 
-记录下返回的 id（作为 parent-id）。
+可手工记录下返回的 id 并设置为 ```PARENT_ID```。
 
 创建资源：
 
 ```
-aws apigateway create-resource --rest-api-id xxxxxxx \
---parent-id yyyyyyyyyy \
+RESOURCE_ID_INI=`aws apigateway create-resource --rest-api-id $REST_API_ID \
+--parent-id $PARENT_ID \
 --path-part ini \
---region cn-north-1
+--region cn-north-1 |jq -r ".id"`
 ```
 
-正常情况下返回如下结果，记录下返回的资源 id：
+如仅执行 ```create-resource```，记录下返回的资源 id，并手工设置 ```RESOURCE_ID_INI```：
 
 ```
 {
@@ -344,8 +382,8 @@ aws apigateway create-resource --rest-api-id xxxxxxx \
 为资源创建方法：
 
 ```
-aws apigateway put-method --rest-api-id xxxxxxx \
---resource-id zzzzzz \
+aws apigateway put-method --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_INI \
 --http-method POST \
 --authorization-type NONE \
 --region cn-north-1
@@ -354,41 +392,53 @@ aws apigateway put-method --rest-api-id xxxxxxx \
 为创建的方法设定集成：
 
 ```
-aws apigateway put-integration --rest-api-id xxxxxxx \
---resource-id zzzzzz \
+aws apigateway put-integration --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_INI \
 --http-method POST \
 --type AWS --integration-http-method POST \
---uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:<ADMIN_ACCOUNT_ID>:function:scp-01-Initial/invocations' \
+--uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:'$ACCOUNT_ID':function:scp-01-Initial/invocations' \
 --region cn-north-1
 ```
+
+为 Lambda 函数 ```scp-01-Initial``` 添加允许 API Gateway 调用的权限：
+
+```
+aws lambda add-permission --function-name scp-01-Initial \
+--statement-id AllowInvokeFromSCP_ini \
+--action lambda:InvokeFunction \
+--principal apigateway.amazonaws.com \
+--source-arn "arn:aws-cn:execute-api:cn-north-1:"$ACCOUNT_ID":"$REST_API_ID"/*/POST/ini" \
+--region cn-north-1
+```
+
 
 ### 创建资源：update
 
 创建资源：
 
 ```
-aws apigateway create-resource --rest-api-id xxxxxxx \
---parent-id yyyyyyyyyy \
+RESOURCE_ID_UPDATE=`aws apigateway create-resource --rest-api-id $REST_API_ID \
+--parent-id $PARENT_ID \
 --path-part update \
---region cn-north-1
+--region cn-north-1 |jq -r ".id"`
 ```
 
-正常情况下返回如下结果，记录下返回的资源 id：
+如仅执行 ```create-resource```，记录下返回的资源 id，并手工设置 ```RESOURCE_ID_UPDATE```：
 
 ```
 {
     "id": "aaaaaa",
     "parentId": "yyyyyyyyyy",
-    "pathPart": "ini",
-    "path": "/ini"
+    "pathPart": "update",
+    "path": "/update"
 }
 ```
 
 为资源创建方法：
 
 ```
-aws apigateway put-method --rest-api-id xxxxxxx \
---resource-id aaaaaa \
+aws apigateway put-method --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_UPDATE \
 --http-method POST \
 --authorization-type NONE \
 --region cn-north-1
@@ -397,18 +447,29 @@ aws apigateway put-method --rest-api-id xxxxxxx \
 为创建的方法设定集成：
 
 ```
-aws apigateway put-integration --rest-api-id xxxxxxx \
---resource-id aaaaaa \
+aws apigateway put-integration --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_UPDATE \
 --http-method POST \
 --type AWS --integration-http-method POST \
---uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:<ADMIN_ACCOUNT_ID>:function:scp-02-Unitial/invocations' \
+--uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:'$ACCOUNT_ID':function:scp-02-Update/invocations' \
+--region cn-north-1
+```
+
+为 Lambda 函数 ```scp-02-Update``` 添加允许 API Gateway 调用的权限：
+
+```
+aws lambda add-permission --function-name scp-02-Update \
+--statement-id AllowInvokeFromSCP_update \
+--action lambda:InvokeFunction \
+--principal apigateway.amazonaws.com \
+--source-arn "arn:aws-cn:execute-api:cn-north-1:"$ACCOUNT_ID":"$REST_API_ID"/*/POST/update" \
 --region cn-north-1
 ```
 
 ### 部署 API
 
 ```
-aws apigateway create-deployment --rest-api-id xxxxxxx \
+aws apigateway create-deployment --rest-api-id $REST_API_ID \
 --stage-name poc \
 --region cn-north-1
 ```

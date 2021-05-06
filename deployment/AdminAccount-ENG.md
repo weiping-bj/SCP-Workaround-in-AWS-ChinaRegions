@@ -25,6 +25,28 @@ After the creation of S3 Bucket, you also need to upload the configuration files
 # Deployment Guide
 The commands in this deployment guide refer to the [AWS CLI Version 2 command specification](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/index.html#cli-aws), and you need to install the AWS CLI version 2 tool in advance according to the [official documentation](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) and configure the AKSK with administrator privileges in the Admin Account. If you have already installed AWS CLI Version 1, you can refer to [AWS CLI Version 1 command specification](https://docs.aws.amazon.com/cli/latest/reference/), this guide will not explain the possible command differences between these two CLI versions.
 
+Clont this repository:
+
+```
+git clone  https://github.com/weiping-bj/SCP-Workaround-in-AWS-ChinaRegions.git
+```
+
+Enter the repository folder:
+
+```
+cd SCP-Workaround-in-AWS-ChinaRegions
+```
+
+Set ```ACCOUNT_ID``` and ```BUCKET_NAME```:  
+
+```
+ACCOUNT_ID=ID=`aws sts get-caller-identity |jq -r ".Account"`
+
+BUCKET_NAME=scp-poc-$ACCOUNT_ID
+```
+
+>You may set ACCOUNT_ID manually, if [jq](https://stedolan.github.io/jq/download/) is not installed.
+
 ## EventBridge Bus
 Each AWS account contains a default event bus: default bus, which can be used to accept events from other accounts. However, it is recommended to create a dedicated event bus for this solution:  
 
@@ -40,7 +62,7 @@ Execute the following command to add allowed permissions to the created event bu
 aws events put-permission \
 --event-bus-name scp-bus \
 --action events:PutEvents \
---principal <YOUR_ADMIN_ACCOUND_ID> \
+--principal $ACCOUNT_ID \
 --statement-id allow_account_to_put_events \
 --region cn-north-1
 ```
@@ -80,7 +102,7 @@ You need to confirm this subscription via admin email.
 Create S3 Bucket:  
 
 ```
-aws s3api create-bucket --bucket <YOUR_BUCKET_NAME> \
+aws s3api create-bucket --bucket $BUCKET_NAME \
 --region cn-north-1 \
 --create-bucket-configuration LocationConstraint=cn-north-1
 ```
@@ -90,14 +112,14 @@ After successful creation, the ARN of S3 Bucket is displayed as a response. Crea
 1. **account-setting/**: The configuration files required to initialize the Pro Account.
 
 ```
-aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
+aws s3api put-object --bucket $BUCKET_NAME \
 --key account-setting/
 ```
 
 Once created, upload the required configuration files, four files in total:
 
 ```
-aws s3 sync deployment/resources/s3-account-setting/ s3://<YOUR_BUCKET_NAME>/account-setting/
+aws s3 sync deployment/resources/s3-account-setting/ s3://$BUCKET_NAME/account-setting/
 ```
 
 - [eventRuleEventPattern.json](resources/s3-account-setting/eventRuleEventPattern.json): When creating an Event Rule in Pro Account, the policy file required for setting the Event Pattern. Indicates that receiving the successful call from CreateUser or CreateRole events.
@@ -108,14 +130,14 @@ aws s3 sync deployment/resources/s3-account-setting/ s3://<YOUR_BUCKET_NAME>/acc
 2. **scp-boundary/**: The statement from this policy file will protect all administrative resources in Pro Account from being destroyed. 
 
 ```
-aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
+aws s3api put-object --bucket $BUCKET_NAME \
 --key scp-boundary/
 ```
 
 Once created, upload the configuration files, just one file in total:  
 
 ```
-aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://<YOUR_BUCKET_NAME>/scp-boundary/
+aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://$BUCKET_NAME/scp-boundary/
 ```
 
 - [scpBoundaryPolicy.json](resources/s3-scp-boundary/scpBoundaryPolicy.json): Protects the administrative resources in the Pro Account. The policy contains mainly three following permission:
@@ -127,7 +149,7 @@ aws s3 cp deployment/resources/s3-scp-boundary/scpBoundaryPolicy.json s3://<YOUR
 3. **scp-permission/**: Policy file that limits the maximum permission boundary for all IAM entities in the Pro Account
 
 ```
-aws s3api put-object --bucket <YOUR_BUCKET_NAME> \
+aws s3api put-object --bucket $BUCKET_NAME \
 --key scp-permission/
 ```
 
@@ -136,7 +158,7 @@ This folder holds the specific policy files that need to be restricted for Pro A
 One policy file is provided in this repository for functional validation, this policy file disables all CloudTrail operations: [test-cloudtrail-deny.json](resources/s3-scp-permission/test-cloudtrail-deny.json)
 
 ```
-aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://<YOUR_BUCKET_NAME>/scp-permission/
+aws s3 cp deployment/resources/s3-scp-permission/test-cloudtrail-deny.json s3://$BUCKET_NAME/scp-permission/
 ```
 
 <mark>The permissions boundary policy that is finally attached to the IAM entity: **scpPolicy = scpBoundary + scpPermission**</mark>
@@ -157,7 +179,7 @@ Login AWS console, ```IAM > Roles > Create Role```, create a role for AWS Lambda
 In the step of ```Attach permissions policies```, choose the following six managed policies:   
 ![CreateRole-policies](png/Admin-04-createRole-policies.png "CreateRole-policies")
 
-The first five policies are AWS managed policies, and the last one is a customer managed policy that was just created.
+The first five policies are AWS managed policies, and the last one is a customer managed policy that was just created. Set Role name as ```scpRole```.
 
 ## DynamoDB Table
 The DynamoDB Table will record which permission boundary policy file is used by different Pro Accounts and the S3 path of the policy file. An example is shown below:  
@@ -179,17 +201,25 @@ In this soluton, three Lambda functions need to be created to operate on the Pro
 
 ```
 aws lambda create-function --function-name scp-01-Initial \
---role arn:aws-cn:iam::<ADMIN_ACCOUNT_ID>:role/scpRole \
+--role "arn:aws-cn:iam::"$ACCOUNT_ID":role/scpRole" \
 --runtime python3.6 \
 --handler lambda_function.lambda_handler \
 --timeout 60 \
 --zip-file fileb://deployment/resources/scp-01-Initial.zip \
+--environment "Variables={ASSUMED_ROLE=scpRole,\
+BOUNDARY_FILE_PATH=s3://$BUCKET_NAME/scp-boundary/scpBoundaryPolicy.json,\
+EVENT_PATTERN=s3://$BUCKET_NAME/account-setting/eventRuleEventPattern.json,\
+ROLE_POLICY=s3://$BUCKET_NAME/account-setting/eventRuleRolePolicy.json,\
+ROLE_TRUST_IDENTITY=s3://$BUCKET_NAME/account-setting/eventRuleRoleTrustRelation.json,\
+S3_POLICY=s3://$BUCKET_NAME/account-setting/trailS3BucketPolicy.json,\
+TABLE_NAME=scp-control-record,\
+TOPIC_ARN=arn:aws-cn:sns:cn-north-1:$ACCOUNT_ID:CN-NotifyMe}" \
 --region cn-north-1
 ```
 
 You may review the source code from [here](code/scp-01-Initial.py).
 
-After the create of this lambda function, set environment variables according to the following table:
+The following environment variables were added while the function was created:  
 
 Key | Value | 
 ----|-----
@@ -205,16 +235,20 @@ TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 ### scp-02-Update
 ```
 aws lambda create-function --function-name scp-02-Update \
---role arn:aws-cn:iam::<ADMIN_ACCOUNT_ID>:role/scpRole \
+--role "arn:aws-cn:iam::"$ACCOUNT_ID":role/scpRole" \
 --runtime python3.6 \
 --handler lambda_function.lambda_handler \
 --timeout 60 \
 --zip-file fileb://deployment/resources/scp-02-Update.zip \
+--environment "Variables={ASSUMED_ROLE=scpRole,\
+BOUNDARY_FILE_PATH=s3://$BUCKET_NAME/scp-boundary/scpBoundaryPolicy.json,\
+TABLE_NAME=scp-control-record,\
+TOPIC_ARN=arn:aws-cn:sns:cn-north-1:$ACCOUNT_ID:CN-NotifyMe}" \
 --region cn-north-1
 ```
 You may review the source code from [here](code/scp-02-Update.py).
 
-After the create of this lambda function, set environment variables according to the following table:
+The following environment variables were while after the function was created:  
 
 Key | Value | 
 ----|-----
@@ -227,17 +261,20 @@ TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 
 ```
 aws lambda create-function --function-name scp-03-Permission \
---role arn:aws-cn:iam::<ADMIN_ACCOUNT_ID>:role/scpRole \
+--role "arn:aws-cn:iam::"$ACCOUNT_ID":role/scpRole" \
 --runtime python3.6 \
 --handler lambda_function.lambda_handler \
 --timeout 60 \
 --zip-file fileb://deployment/resources/scp-03-Permission.zip \
+--environment "Variables={ASSUMED_ROLE=scpRole,\
+SCP_BOUNDARY_POLICY=scpPolicy,\
+TOPIC_ARN=arn:aws-cn:sns:cn-north-1:$ACCOUNT_ID:CN-NotifyMe}" \
 --region cn-north-1
 ```
 
 You may review the source code from [here](code/scp-03-Permission.py).
 
-After the create of this lambda function, set environment variables according to the following table:
+The following environment variables were while after the function was created:  
 
 Key | Value | 
 ----|-----
@@ -249,11 +286,11 @@ TOPIC\_ARN | arn:aws-cn:sns:cn-north-1:```<ADMIN_ACCOUNT_ID>```:CN-NotifyMe
 Create an Event Rule to allow the reception of IAM events: CreateUser and CreateRole:
 
 ```
-aws events put-rule --name scp-rule \
+RULE_ARN=`aws events put-rule --name scp-rule \
 --event-pattern "{\"source\": [\"aws.iam\"], \"detail-type\": [\"AWS API Call via CloudTrail\"], \"detail\": {\"eventSource\": [\"iam.amazonaws.com\"], \"eventName\": [\"CreateUser\", \"CreateRole\"], \"errorCode\": [{\"exists\": false}]}}" \
 --state ENABLED \
 --event-bus-name scp-bus \
---region cn-north-1
+--region cn-north-1 | jq -r ".RuleArn"`
 ```
 
 Add a target to the created Event Rule to trigger the Lambda function: scp-03-Permission.
@@ -261,7 +298,7 @@ Add a target to the created Event Rule to trigger the Lambda function: scp-03-Pe
 ```
 aws events put-targets --rule scp-rule \
 --event-bus-name scp-bus \
---targets "Id"="1","Arn"="arn:aws-cn:lambda:cn-north-1:<ADMIN_ACCOUNT_ID>:function:scp-03-Permission" \
+--targets "Id"="1","Arn"="arn:aws-cn:lambda:cn-north-1:"$ACCOUNT_ID":function:scp-03-Permission" \
 --region cn-north-1
 ```
 
@@ -274,12 +311,12 @@ Two APIs need to be created in this solution:
 Create APIs：
 
 ```
-aws apigateway create-rest-api --name scp \
+REST_API_ID=`aws apigateway create-rest-api --name scp \
 --endpoint-configuration types=REGIONAL \
---region cn-north-1
+--region cn-north-1|jq -r ".id"`
 ```
 
-The succesful creation will return the following result:
+You may set ```REST_API_ID``` manually, if [jq](https://stedolan.github.io/jq/download/) is not installed. After execute ```create-rest-api```, the successful response as belows:
 
 ```
 {
@@ -296,17 +333,17 @@ The succesful creation will return the following result:
     "disableExecuteApiEndpoint": false
 }
 ```
-Record the returned id (as rest-api-id).
+Set returned id as ```REST_API_ID```.
 
 ### Create Resource: ini
 
 Check the resources of the api-gateway just created:
 
 ```
-aws apigateway get-resources --rest-api-id xxxxxx --region cn-north-1
+PARENT_ID=`aws apigateway get-resources --rest-api-id $REST_API_ID --region cn-north-1 | jq -r ".items" | jq -r ".[0].id"`
 ```
 
-Response as belows:
+If only execute ```get-resources```, the response is as below:
 
 ```
 {
@@ -319,18 +356,18 @@ Response as belows:
 }
 ```
 
-Record the returned id (as parents-id).
+You set returned id as ```PARENT_ID``` manually.
 
 Create resource:
 
 ```
-aws apigateway create-resource --rest-api-id xxxxxxx \
---parent-id yyyyyyyyyy \
+RESOURCE_ID_INI=`aws apigateway create-resource --rest-api-id $REST_API_ID \
+--parent-id $PARENT_ID \
 --path-part ini \
---region cn-north-1
+--region cn-north-1 |jq -r ".id"`
 ```
 
-The successful creation will returen the following result, record returned id (as resource-id):
+If only execute ```create-resource```, manually set ```RESOURCE_ID_INI``` using returned id:  
 
 ```
 {
@@ -344,8 +381,8 @@ The successful creation will returen the following result, record returned id (a
 Create method for the resource:
 
 ```
-aws apigateway put-method --rest-api-id xxxxxxx \
---resource-id zzzzzz \
+aws apigateway put-method --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_INI \
 --http-method POST \
 --authorization-type NONE \
 --region cn-north-1
@@ -354,11 +391,22 @@ aws apigateway put-method --rest-api-id xxxxxxx \
 Create integration for the methode:
 
 ```
-aws apigateway put-integration --rest-api-id xxxxxxx \
---resource-id zzzzzz \
+aws apigateway put-integration --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_INI \
 --http-method POST \
 --type AWS --integration-http-method POST \
---uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:<ADMIN_ACCOUNT_ID>:function:scp-01-Initial/invocations' \
+--uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:'$ACCOUNT_ID':function:scp-01-Initial/invocations' \
+--region cn-north-1
+```
+
+Add permission for the Lambda function ``scp-01-Initial`` to be invoked by the API Gateway:
+
+```
+aws lambda add-permission --function-name scp-01-Initial \
+--statement-id AllowInvokeFromSCP_ini \
+--action lambda:InvokeFunction \
+--principal apigateway.amazonaws.com \
+--source-arn "arn:aws-cn:execute-api:cn-north-1:"$ACCOUNT_ID":"$REST_API_ID"/*/POST/ini" \
 --region cn-north-1
 ```
 
@@ -367,28 +415,28 @@ aws apigateway put-integration --rest-api-id xxxxxxx \
 Create Resource:
 
 ```
-aws apigateway create-resource --rest-api-id xxxxxxx \
---parent-id yyyyyyyyyy \
+RESOURCE_ID_UPDATE=`aws apigateway create-resource --rest-api-id $REST_API_ID \
+--parent-id $PARENT_ID \
 --path-part update \
---region cn-north-1
+--region cn-north-1 |jq -r ".id"`
 ```
 
-The successful creation will returen the following result, record returned id (as resource-id):
+If only execute ```create-resource```, manually set ```RESOURCE_ID_UPDATE``` using returned id:  
 
 ```
 {
     "id": "aaaaaa",
     "parentId": "yyyyyyyyyy",
-    "pathPart": "ini",
-    "path": "/ini"
+    "pathPart": "update",
+    "path": "/update"
 }
 ```
 
 Create method for the resource:
 
 ```
-aws apigateway put-method --rest-api-id xxxxxxx \
---resource-id aaaaaa \
+aws apigateway put-method --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_UPDATE \
 --http-method POST \
 --authorization-type NONE \
 --region cn-north-1
@@ -397,18 +445,29 @@ aws apigateway put-method --rest-api-id xxxxxxx \
 Create integration for the methode:
 
 ```
-aws apigateway put-integration --rest-api-id xxxxxxx \
---resource-id aaaaaa \
+aws apigateway put-integration --rest-api-id $REST_API_ID \
+--resource-id $RESOURCE_ID_UPDATE \
 --http-method POST \
 --type AWS --integration-http-method POST \
---uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:<ADMIN_ACCOUNT_ID>:function:scp-02-Unitial/invocations' \
+--uri 'arn:aws-cn:apigateway:cn-north-1:lambda:path/2015-03-31/functions/arn:aws-cn:lambda:cn-north-1:'$ACCOUNT_ID':function:scp-02-Update/invocations' \
+--region cn-north-1
+```
+
+Add permission for the Lambda function ``scp-02-Update`` to be invoked by the API Gateway:
+
+```
+aws lambda add-permission --function-name scp-02-Update \
+--statement-id AllowInvokeFromSCP_update \
+--action lambda:InvokeFunction \
+--principal apigateway.amazonaws.com \
+--source-arn "arn:aws-cn:execute-api:cn-north-1:"$ACCOUNT_ID":"$REST_API_ID"/*/POST/update" \
 --region cn-north-1
 ```
 
 ### Deploy API
 
 ```
-aws apigateway create-deployment --rest-api-id xxxxxxx \
+aws apigateway create-deployment --rest-api-id $REST_API_ID \
 --stage-name poc \
 --region cn-north-1
 ```

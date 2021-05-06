@@ -183,6 +183,8 @@ def createProResource(accountId, scpAccountId, scpPolicyFile):
             }]
     )
     
+    ct_pro_client.start_logging(Name=trailName)
+    
     # create EventBridge Rule in pro Account
     with open('/tmp/eventRuleRolePolicy.json', 'r') as r:
         policy = json.load(r)
