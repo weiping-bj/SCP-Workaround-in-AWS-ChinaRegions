@@ -8,7 +8,7 @@
             "Resource": "*"
         },
         {
-            "Sid": "ResourceProtect",
+            "Sid": "TaggedResourcesProtect",
             "Effect": "Deny",
             "Action": "*",
             "Resource": "*",
@@ -19,17 +19,14 @@
             }
         },
         {
-            "Sid": "PolicyProtect",
+            "Sid": "OtherResourcesProtect",
             "Effect": "Deny",
-            "Action": [
-                "iam:CreatePolicyVersion",
-                "iam:DeletePolicy",
-                "iam:DeletePolicyVersion",
-                "iam:GetPolicy",
-                "iam:GetPolicyVersion",
-                "iam:SetDefaultPolicyVersion"
-            ],
-            "Resource": "arn:aws-cn:iam::<ACCOUNT_ID>:policy/scpPolicy"
+            "Action": "*",
+            "Resource": [
+                "arn:aws-cn:iam::<ACCOUNT_ID>:policy/scpPolicy",
+                "arn:aws-cn:cloudtrail:cn-north-1:<ACCOUNT_ID>:trail/scp-trail-<ACCOUNT_ID>",
+                "arn:aws-cn:s3:::scp-trail-do-not-delete-<ACCOUNT_ID>"
+            ]
         },
         {
             "Sid": "DenyBoundaryRemove",
