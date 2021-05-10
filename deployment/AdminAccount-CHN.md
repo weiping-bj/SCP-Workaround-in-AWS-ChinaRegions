@@ -40,7 +40,7 @@ cd SCP-Workaround-in-AWS-ChinaRegions
 设置部署时需要用到的常量，```ACCOUNT_ID``` 和 ```BUCKET_NAME```：
 
 ```
-ACCOUNT_ID=ID=`aws sts get-caller-identity |jq -r ".Account"`
+ACCOUNT_ID=`aws sts get-caller-identity |jq -r ".Account"`
 
 BUCKET_NAME=scp-poc-$ACCOUNT_ID
 ```
